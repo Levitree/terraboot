@@ -1,26 +1,28 @@
-# Katapult  (formerly known as CanBoot)
- Bootloader for ARM Cortex-M MCUs
+# Katapult (formerly known as CanBoot)
 
- This bootloader was initially designed for CAN nodes to be used with
- [Klipper](https://github.com/Klipper3d/klipper).  The bootloader
- itself makes use of Klipper's hardware abstraction layer, stripped
- down to keep the footprint minimal. In addition to CAN, Katapult now
- supports USB and UART interfaces.
+Bootloader for ARM Cortex-M MCUs
 
-Currently lpc176x, stm32 and rp2040 MCUs are supported.  CAN support is currently
+This bootloader was initially designed for CAN nodes to be used with
+[Klipper](https://github.com/Klipper3d/klipper). The bootloader
+itself makes use of Klipper's hardware abstraction layer, stripped
+down to keep the footprint minimal. In addition to CAN, Katapult now
+supports USB and UART interfaces.
+
+Currently lpc176x, stm32 and rp2040 MCUs are supported. CAN support is currently
 limited to stm32 F-series and rp2040 devices.
 
 Katapult is licensed under the [GNU GPL v3](/LICENSE).
 
 Note: References to CanBoot remain both in the source of this repo and
-in related projects such as Klipper.  Some of these must remain indefinitely
-for compatibility.  Documentation and source code references that do not break
+in related projects such as Klipper. Some of these must remain indefinitely
+for compatibility. Documentation and source code references that do not break
 compatibility will be updated over time.
 
 ## Building
 
-Katapult also uses Klipper's build system.  The build is configured
-with menuconfig.  The steps to fetch and build are as follows:
+Katapult also uses Klipper's build system. The build is configured
+with menuconfig. The steps to fetch and build are as follows:
+
 ```
 git clone https://github.com/Arksine/katapult
 cd katapult
@@ -28,47 +30,70 @@ make menuconfig
 make
 ```
 
+Pre-defined Katapult configurations now live under the `configs/` directory.
+To reuse the default Terraboot profile, copy it into `.config` before building:
+
+```
+cp configs/steinzeit.config .config
+make olddefconfig
+make
+```
+
+To compile every configuration in `configs/` at once, use the helper script:
+
+```
+./scripts/build-configs.sh
+```
+
+The script also accepts optional arguments to select a different configuration
+directory, change the artifact directory, or target a single configuration:
+
+```
+./scripts/build-configs.sh configs build-artifacts steinzeit
+```
+
 The menuconfig will present the following options:
+
 - `Microcontroller Architecture`: Choose between lpc176x, stm32 and rp2040
 - `Processor model`: Options depend on the chosen architecture
 - `Build Katapult deployment application`: See the [deployer](#katapult-deployer)
-   section below.
-- `Disable SWD at startup`:  This is an option for GigaDevice STM32F103
-  clones.  Note that this is untested for the bootloader, GigaDevice clones
+  section below.
+- `Disable SWD at startup`: This is an option for GigaDevice STM32F103
+  clones. Note that this is untested for the bootloader, GigaDevice clones
   may not work as expected.
 - `Clock Reference`: Choose the appropriate setting for your board's crystal
-- `Communication interface`:  Choose between CAN, USB, and UART.  Be sure
+- `Communication interface`: Choose between CAN, USB, and UART. Be sure
   to choose the interface with the appropriate pins for your hardware.
 - For CAN Interfaces:
   - `CAN bus speed`: Select the appropriate speed for your canbus.
 - For Serial (USART) Interfaces:
-  - `Baud rate for serial port`:  Select the appropriate baud rate for your
+  - `Baud rate for serial port`: Select the appropriate baud rate for your
     serial device.
 - For USB Interfaces:
-  - `USB ids`:  Allows the user to define the USB Vendor ID, Product ID,
+  - `USB ids`: Allows the user to define the USB Vendor ID, Product ID,
     and/or Serial Number.
-- `Support bootloader entry on rapid double click of reset button`:  When
+- `Support bootloader entry on rapid double click of reset button`: When
   enabled it is possible to enter the bootloader by pressing the reset button
   twice within a 500ms window.
-- `Enable bootloader entry on button (or gpio) state`:  Enable to use a gpio
+- `Enable bootloader entry on button (or gpio) state`: Enable to use a gpio
   to enter the bootloader.
-  - `Button GPIO Pin`:  The Pin Name of the GPIO to use as a button.  A hardware
-  pull-up can be enabled by prefixing a `^`, and a pull-down can be enabled by
-  prefixing a `~`.
+  - `Button GPIO Pin`: The Pin Name of the GPIO to use as a button. A hardware
+    pull-up can be enabled by prefixing a `^`, and a pull-down can be enabled by
+    prefixing a `~`.
 - `Enable Status Led`: Enables the option to select a status LED gpio.
-  - `Status LED GPIO Pin`:  The pin name for your LED.  The Pin can be inverted
-    if the LED is on when the pin is low.  For example, the status LED Pin for a
+  - `Status LED GPIO Pin`: The pin name for your LED. The Pin can be inverted
+    if the LED is on when the pin is low. For example, the status LED Pin for a
     "blue pill" is !PC13.
 
-Once configured and built flash with a programmer such as an ST-Link.  If you
+Once configured and built flash with a programmer such as an ST-Link. If you
 don't have a programmer available, it should be possible to flash STM32F103
-devices via UART and STM32F042/72 devices over DFU.  ST's STM32CubeProgrammer
+devices via UART and STM32F042/72 devices over DFU. ST's STM32CubeProgrammer
 software can facilitate all of these methods, however there are also other
 tools such as `stm32flash` (UART) and `dfu-util` (USB DFU).
 
-NOTE:  Prior to flashing Katapult it is recommended to do a full chip erase.
+NOTE: Prior to flashing Katapult it is recommended to do a full chip erase.
 Doing so allows Katapult to detect that no application is present and enter
-the bootloader.  This is required to enter the bootloader if you have not
+the bootloader. This is required to enter the bootloader if you have not
 configured an alternative method of entry.
 
 NOTE RP2040: To flash rp2040 targets mcu should be rebooted in system boot mode
@@ -79,25 +104,28 @@ will erase main application (i.e. klipper), so it should be uploaded
 with Katapult again.
 
 ## Uploading Klipper
-1) Make sure the `klipper` service stopped.
-2) Build Klipper with CAN support and with the a bootloader offset matching that
+
+1. Make sure the `klipper` service stopped.
+2. Build Klipper with CAN support and with the a bootloader offset matching that
    of the "application offset" in Katapult.
-3) Enter the bootloader.  Katapult automatically enters the bootloader if it
+3. Enter the bootloader. Katapult automatically enters the bootloader if it
    detects that the application area of flash is empty. When upgrading from a
    currently flashed version of Klipper the `flashtool.py` script will command
-   USB and CANBus devices to enter the bootloader.  Note that "USB to CAN
-   bridge devices" and "UART" devices cannot be auto-detected.  If the device
+   USB and CANBus devices to enter the bootloader. Note that "USB to CAN
+   bridge devices" and "UART" devices cannot be auto-detected. If the device
    is not in bootloader mode it is necessary to first manually request the
    bootloader with the `-r` option, then rerun the script without `-r` to
-   perform the upload.  Devices running software other than Klipper will need
+   perform the upload. Devices running software other than Klipper will need
    to request the bootloader with their own method.
-3) Run the flash script:
+4. Run the flash script:
    For CAN Devices:
+
    ```
    cd ~/katapult/scripts
    python3 flashtool.py -i can0 -f ~/klipper/out/klipper.bin -u <uuid>
    ```
-   Replace <uuid> with the appropriate uuid for your can device.  If
+
+   Replace <uuid> with the appropriate uuid for your can device. If
    the device has not been previously flashed with Klipper, it is possible
    to query the bootloader for the UUID:
 
@@ -106,23 +134,26 @@ with Katapult again.
    ```
 
    **NOTE: A query should only be performed when a single can node is on
-   the network.  Attempting to query multiple nodes may result in transmission
-   errors that can force a node into a "bus off" state.  When a node enters
-   "bus off" it becomes unresponsive.  The node must be reset to recover.**
+   the network. Attempting to query multiple nodes may result in transmission
+   errors that can force a node into a "bus off" state. When a node enters
+   "bus off" it becomes unresponsive. The node must be reset to recover.**
 
    For USB/UART devices:
-   Before flashing, make sure pyserial is installed.  The command required
-   for installation depends on the the linux distribution.  Debian and Ubuntu
+   Before flashing, make sure pyserial is installed. The command required
+   for installation depends on the the linux distribution. Debian and Ubuntu
    based distros can run the following commands:
+
    ```
    sudo apt update
    sudo apt install python3-serial
    ```
+
    ```
    python3 flashtool.py -d <serial device> -b <baud_rate>
    ```
+
    Replace `<serial_device>` the the path to the USB/UART device you wish to
-   flash.  The `<baud_rate>` is only necessary for UART devices, and defaults
+   flash. The `<baud_rate>` is only necessary for UART devices, and defaults
    to 250000 baud if omitted.
 
 ## Flash Tool usage
@@ -156,25 +187,25 @@ options:
 
 ### Can Programming
 
-The `-i` option defaults to `can0` if omitted.  The `uuid` option is required
-for programming.  The `-q` option will query the CAN interface for unassigned
+The `-i` option defaults to `can0` if omitted. The `uuid` option is required
+for programming. The `-q` option will query the CAN interface for unassigned
 nodes, returning their UUIDs.
 
 The `-f` option defaults to `~/klipper/out/klipper.bin` when omitted.
 
 ### Serial Programming (USB or UART)
 
-The `-d` option is required.  The `-b` option defaults to `250000` if omitted.
+The `-d` option is required. The `-b` option defaults to `250000` if omitted.
 
 If `flashtool` detects that the device is connected via USB, it will check
-the USB IDs to determine if its currently running Klipper.  If so, the
+the USB IDs to determine if its currently running Klipper. If so, the
 `flashtool` will attempt to request the bootloader, waiting until it detects
 Katapult.
 
 ### Request Bootloader and Exit
 
 When the `-r` option is supplied `flashtool` request that the MCU enter
-the bootloader.  Flashtool will then immediately exit, no attempt will be
+the bootloader. Flashtool will then immediately exit, no attempt will be
 made to upload a new binary over the canbus.
 
 This is particularly useful for Klipper devices configured in "USB to CAN
@@ -189,32 +220,32 @@ over a UART connection to request Klipper's bootloader.
 ## Katapult Deployer
 
 **WARNING**: Make absolutely sure your Katapult build configuration is
-correct before uploading the deployer.  Overwriting your existing
+correct before uploading the deployer. Overwriting your existing
 bootloader with an incorrectly configured build will brick your device
 and require a programmer to recover.
 
 The Katapult deployer allows a user to overwrite their existing bootloader
-with Katapult, allowing modification and updates without a programmer.  It
-is *strongly* recommended that an alternate recovery (programmer, DFU, etc)
+with Katapult, allowing modification and updates without a programmer. It
+is _strongly_ recommended that an alternate recovery (programmer, DFU, etc)
 method is available in the event that something goes wrong during deployment.
 If coming from a stock bootloader it is also recommended that the user create
 a backup before proceeding.
 
 To build the deployer set the `Build Katapult deployment application` option
-in the menuconfig to your existing bootloader offset.  The additional settings
+in the menuconfig to your existing bootloader offset. The additional settings
 apply to the Katapult binary, configure them just as you would without the
-deployer.  Save your settings and build with `make`.
+deployer. Save your settings and build with `make`.
 
 This will result in an additional binary in the `out` folder, `deployer.bin`.
 Flash `deployer.bin` with your existing bootloader (SD Card, HID, an older
-version of Katapult, etc).  Once complete, the deployer should reset the
-device and enter Katapult.  Now you are ready to use Katapult to flash an
+version of Katapult, etc). Once complete, the deployer should reset the
+device and enter Katapult. Now you are ready to use Katapult to flash an
 application, such as Klipper.
 
 ## Contributing
 
-Katapult is effectively a fork of Klipper's MCU source.  As such, it is appropriate
-to retain similar contributing guidelines as Klipper.  Commits should be formatted
+Katapult is effectively a fork of Klipper's MCU source. As such, it is appropriate
+to retain similar contributing guidelines as Klipper. Commits should be formatted
 as follows:
 
 ```
@@ -230,16 +261,17 @@ acceptance of the
 [developer certificate of origin](/developer-certificate-of-origin).
 
 ## Notes
+
 - It is recommended to use a USB-CAN device flashed with
   [candlelight](https://github.com/candle-usb/candleLight_fw), such as a
   [Canable](https://canable.io/). Alternatively, a device that supports Klipper's
   USB-CAN bridge mode works well.
-- The BTT U2C v2.1 CAN device requires the latest firmware.  The binary can be found
+- The BTT U2C v2.1 CAN device requires the latest firmware. The binary can be found
   [in the U2C repo](https://github.com/bigtreetech/U2C/tree/master/firmware) and the
   source can be found at [BTT's candlelight fork](https://github.com/bigtreetech/candleLight_fw/commits/stm32g0_support).
 - If using a MCP2515 CAN device (ie: Waveshare RS485 CAN HAT) it is possible
   that packets will be dropped when reading flash back from the node during
-  the verification process.  That said, I have successfully tested the 12 MHz
+  the verification process. That said, I have successfully tested the 12 MHz
   Crystal variant with the
   [recommended settings](https://www.waveshare.com/wiki/RS485_CAN_HAT).
 - Details on the protocol used to communicate with the bootloader may
