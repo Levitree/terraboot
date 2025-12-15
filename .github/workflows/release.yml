@@ -42,7 +42,7 @@ jobs:
       - name: Install toolchain
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc-arm-none-eabi libnewlib-arm-none-eabi zip
+          sudo apt-get install -y gcc-arm-none-eabi libnewlib-arm-none-eabi
       - name: Build configuration
         env:
           CONFIG_NAME: ${{ matrix.config }}
@@ -53,19 +53,12 @@ jobs:
           CONFIG_NAME: ${{ matrix.config }}
         run: |
           mkdir -p release
-          cp configs/${CONFIG_NAME}.config release/terraboot-${CONFIG_NAME}.config
           cp ${ARTIFACT_DIR}/${CONFIG_NAME}/katapult.bin release/terraboot-${CONFIG_NAME}.bin
-          if [ -f ${ARTIFACT_DIR}/${CONFIG_NAME}/katapult.uf2 ]; then
-            cp ${ARTIFACT_DIR}/${CONFIG_NAME}/katapult.uf2 release/terraboot-${CONFIG_NAME}.uf2
-          fi
-          pushd ${ARTIFACT_DIR}/${CONFIG_NAME} >/dev/null
-          zip -r ../../release/terraboot-${CONFIG_NAME}.zip .
-          popd >/dev/null
       - name: Upload release artifacts
         uses: actions/upload-artifact@v4
         with:
           name: terraboot-${{ matrix.config }}
-          path: release/*
+          path: release/*.bin
           if-no-files-found: error
 
   publish:
@@ -83,11 +76,11 @@ jobs:
       - name: Collect assets
         run: |
           mkdir -p release
-          find dist -type f -name 'terraboot-*' -exec mv {} release/ \;
+          find dist -type f -name 'terraboot-*.bin' -exec mv {} release/ \;
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
           name: Terraboot ${{ github.ref_name }}
           body: |
             Automated Terraboot build for tag ${{ github.ref_name }}.
-          files: release/terraboot-*
+          files: release/terraboot-*.bin
