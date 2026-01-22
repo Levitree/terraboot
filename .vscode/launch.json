@@ -1,0 +1,41 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Cortex Debug (Steinzeit)",
+      "type": "cortex-debug",
+      "request": "launch",
+      "servertype": "jlink",
+      "cwd": "${workspaceFolder}",
+      "executable": "${workspaceFolder}/out/katapult.elf",
+      "device": "STM32F103C8",
+      "interface": "swd",
+      "runToEntryPoint": "armcm_main",
+      "preLaunchTask": "Build",
+      "preRestartCommands": ["monitor reset"],
+      "postLaunchCommands": ["monitor clrbp"]
+    },
+    {
+      "name": "Cortex Debug (Reset Handler)",
+      "type": "cortex-debug",
+      "request": "launch",
+      "servertype": "jlink",
+      "cwd": "${workspaceFolder}",
+      "executable": "${workspaceFolder}/out/katapult.elf",
+      "device": "STM32F103VE",
+      "interface": "swd",
+      "runToEntryPoint": "ResetHandler",
+      "preLaunchTask": "Build"
+    },
+    {
+      "name": "Cortex Debug (Attach)",
+      "type": "cortex-debug",
+      "request": "attach",
+      "servertype": "jlink",
+      "cwd": "${workspaceFolder}",
+      "executable": "${workspaceFolder}/out/katapult.elf",
+      "device": "STM32F103VE",
+      "interface": "swd"
+    }
+  ]
+}
