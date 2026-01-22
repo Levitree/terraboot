@@ -12,6 +12,7 @@ void set_bootup_code(uint64_t code);
 void application_read_flash(uint32_t address, uint32_t *dest);
 int application_check_valid(void);
 void application_jump(void);
+void system_reset(void);
 
 void udelay(uint32_t usecs);
 void timer_setup(void);

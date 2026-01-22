@@ -54,7 +54,7 @@ void
 complete_task(void)
 {
     if (complete && timer_is_before(complete_endtime, timer_read_time()))
-        application_jump();
+        system_reset();
 }
 DECL_TASK(complete_task);
 

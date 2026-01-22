@@ -72,14 +72,18 @@ application_check_valid(void)
     return appvalidate_verify() == APP_VALID;
 }
 
-// Jump to the main application (exiting the bootloader)
-void
-application_jump(void)
+// Reset system with specified bootup code
+static void __noreturn
+do_reset(uint64_t code)
 {
     irq_disable();
-    set_bootup_code(REQUEST_START_APP);
+    set_bootup_code(code);
     NVIC_SystemReset();
+    for (;;);
 }
+
+void application_jump(void) { do_reset(REQUEST_START_APP); }
+void system_reset(void) { do_reset(0); }
 
 static void __always_inline
 boot_start_application(void)
