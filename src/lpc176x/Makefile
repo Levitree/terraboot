@@ -3,9 +3,9 @@
 # Setup the toolchain
 CROSS_PREFIX=arm-none-eabi-
 
-dirs-y += src/lpc176x src/generic lib/lpc176x/device
+dirs-y += src/lpc176x src/generic lib/lpc176x/device lib/fast-hash
 
-CFLAGS += -mthumb -mcpu=cortex-m3 -Ilib/lpc176x/device -Ilib/cmsis-core
+CFLAGS += -mthumb -mcpu=cortex-m3 -Ilib/lpc176x/device -Ilib/cmsis-core -Ilib/fast-hash
 CFLAGS += -Wno-nonnull
 
 CFLAGS_katapult.elf += -nostdlib -lgcc -lc_nano
@@ -17,7 +17,7 @@ mcu-y = lpc176x/main.c lpc176x/gpio.c lpc176x/flash.c
 mcu-y += generic/armcm_irq.c generic/armcm_timer.c generic/crc16_ccitt.c
 mcu-y += ../lib/lpc176x/device/system_LPC17xx.c
 
-src-y += generic/armcm_canboot.c $(mcu-y)
+src-y += generic/armcm_canboot.c $(mcu-y) ../lib/fast-hash/fasthash.c
 src-$(CONFIG_USBSERIAL) += lpc176x/usbserial.c lpc176x/chipid.c
 src-$(CONFIG_USBSERIAL) += generic/usb_cdc.c
 src-$(CONFIG_SERIAL) += lpc176x/serial.c generic/serial_irq.c

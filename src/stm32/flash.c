@@ -11,7 +11,7 @@
 #include "internal.h" // FLASH
 
 // Return the flash page size at the given address
-static uint32_t
+uint32_t
 flash_get_page_size(uint32_t addr)
 {
     if (CONFIG_MACH_STM32F2 || CONFIG_MACH_STM32F4) {

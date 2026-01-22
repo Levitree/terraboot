@@ -4,12 +4,18 @@
 //
 // This file may be distributed under the terms of the GNU GPLv3 license.
 
+#include "autoconf.h" // CONFIG_CANSERIAL
 #include "board/io.h" // readb
 #include "board/misc.h" // jump_to_application
 #include "bootentry.h" // bootentry_check
 #include "canboot.h" // timer_setup
 #include "deployer.h" // deployer_is_active
+#include "flashcmd.h" // flashcmd_is_in_transfer
 #include "sched.h" // sched_check_periodic
+
+#if CONFIG_CANSERIAL
+#include "generic/canbus.h" // canserial_has_assigned_id
+#endif
 
 // The main CanBoot code is running (not the deployer application)
 int
@@ -49,6 +55,63 @@ sched_check_wake(struct task_wake *w)
     writeb(&w->wake, 0);
     return 1;
 }
+
+
+/****************************************************************
+ * Command timeout handling
+ ****************************************************************/
+
+#if CONFIG_CANSERIAL
+
+// Timeout values in microseconds
+#define TIMEOUT_NO_SHORTID_US  (10 * 1000000)  // 10 seconds
+#define TIMEOUT_WITH_SHORTID_US (30 * 1000000) // 30 seconds
+
+static uint32_t timeout_start;
+static uint8_t timeout_initialized;
+
+void
+timeout_init(void)
+{
+    if (!bootentry_is_commanded()) {
+        // Not a commanded entry - no timeout
+        timeout_initialized = 0;
+        return;
+    }
+    timeout_start = timer_read_time();
+    timeout_initialized = 1;
+}
+DECL_INIT(timeout_init);
+
+void
+timeout_task(void)
+{
+    if (!timeout_initialized)
+        return;
+
+    // Don't timeout during active flash transfer
+    if (flashcmd_is_in_transfer())
+        return;
+
+    // Calculate appropriate timeout based on short ID status
+    uint32_t timeout_us = canserial_has_assigned_id()
+        ? TIMEOUT_WITH_SHORTID_US
+        : TIMEOUT_NO_SHORTID_US;
+
+    uint32_t timeout_end = timeout_start + timer_from_us(timeout_us);
+    if (timer_is_before(timer_read_time(), timeout_end))
+        return;
+
+    // Timeout reached - try to boot if app is valid
+    if (application_check_valid())
+        application_jump();
+
+    // App not valid - reset timeout and keep waiting
+    timeout_start = timer_read_time();
+}
+DECL_TASK(timeout_task);
+
+#endif // CONFIG_CANSERIAL
 
 // Init followed by main task dispatch loop
 void

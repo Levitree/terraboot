@@ -5,5 +5,6 @@
 
 int flash_write_block(uint32_t block_address, uint32_t *data);
 int flash_complete(void);
+uint32_t flash_get_page_size(uint32_t addr);
 
 #endif

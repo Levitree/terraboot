@@ -340,3 +340,10 @@ canserial_shutdown(void)
     canserial_notify_rx();
 }
 DECL_SHUTDOWN(canserial_shutdown);
+
+// Check if a short ID has been assigned
+int
+canserial_has_assigned_id(void)
+{
+    return CanData.assigned_id != 0;
+}

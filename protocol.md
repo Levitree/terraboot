@@ -86,7 +86,12 @@ in the following format:
 #### EOF: `0x13`
 
 Indicates that the end of file has been reached and the bootloader should
-write any remaining data in the buffer to flash.  This command has no payload:
+write any remaining data in the buffer to flash. After completing the write,
+the bootloader computes a hash (fasthash64) of the uploaded firmware and
+stores it along with the firmware size in a metadata page. This metadata is
+used to validate the firmware integrity before boot.
+
+This command has no payload:
 
 ```
 <0x01><0x88><0x13><0x00><CRC><0x99><0x03>
@@ -101,6 +106,9 @@ in the following format:
 
 - `orig_command`: Must be `0x13`
 - `page_count`: The total number of pages written to flash.
+
+**Note:** If the metadata write fails, responds with [Command Error](#command-error-0xf2).
+Firmware with corrupted or missing metadata will not boot.
 
 #### Request Block: `0x14`
 

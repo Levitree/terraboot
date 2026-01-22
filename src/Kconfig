@@ -110,6 +110,16 @@ config STATUS_LED_PIN
     string "Status LED GPIO Pin"
     depends on ENABLE_LED
 
+config METADATA_PAGE_SIZE
+    hex "Metadata page size"
+    default 0x400
+    help
+        Size of the metadata page in bytes. This page is prepended to
+        the app firmware and contains validation data (magic, hash, size).
+        Must match flash page size for proper erase/write alignment.
+        STM32F103: 0x400 (1KB)
+        STM32F4xx: 0x4000 (16KB for first sectors)
+
 config BUILD_DEPLOYER
     bool
     default y if FLASH_APPLICATION_ADDRESS != FLASH_BOOT_ADDRESS

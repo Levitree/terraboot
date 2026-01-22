@@ -27,4 +27,7 @@ void canbus_set_filter(uint32_t id);
 void canbus_notify_tx(void);
 void canbus_process_data(struct canbus_msg *msg);
 
+// canserial.c
+int canserial_has_assigned_id(void);
+
 #endif // canbus.h

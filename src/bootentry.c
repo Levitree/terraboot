@@ -17,6 +17,9 @@
 DECL_CTR("DECL_BUTTON " __stringify(CONFIG_BUTTON_PIN));
 extern int32_t button_gpio, button_high, button_pullup;
 
+// Track if bootloader was entered via command
+static int commanded_entry;
+
 // Check for a bootloader request via double tap of reset button
 static int
 check_button_pressed(void)
@@ -50,6 +53,13 @@ check_double_reset(void)
     return 0;
 }
 
+// Returns 1 if bootloader was entered via command
+int
+bootentry_is_commanded(void)
+{
+    return commanded_entry;
+}
+
 // Check if bootloader or application should be started
 int
 bootentry_check(void)
@@ -58,7 +68,8 @@ bootentry_check(void)
     // - The request signature is set in memory (request from app)
     // - No application code is present
     uint64_t bootup_code = get_bootup_code();
-    if (bootup_code == REQUEST_CANBOOT || !application_check_valid()
+    commanded_entry = (bootup_code == REQUEST_CANBOOT);
+    if (commanded_entry || !application_check_valid()
         || check_button_pressed()) {
         // Start bootloader main loop
         set_bootup_code(0);
