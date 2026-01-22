@@ -158,6 +158,27 @@ payload in the following format:
 <4 byte orig_command><6 byte UUID><0x00><0x00>
 ```
 
+#### Identify: `0x17`
+
+Triggers the device to identify itself by flashing the status LED at 3Hz for
+10 seconds. This command is only available on devices with a status LED
+configured.
+
+```
+<0x01><0x88><0x17><0x00><CRC><0x99><0x03>
+```
+
+Responds with [acknowledged](#acknowledged-0xa0) containing a 4 byte payload:
+
+```
+<4 byte orig_command>
+```
+
+- `orig_command`: Must be `0x17`
+
+If the device does not have a status LED configured, responds with
+[Command Error](#command-error-0xf2).
+
 ### Responses
 
 #### Acknowledged: `0xa0`

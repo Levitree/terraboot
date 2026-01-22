@@ -9,6 +9,7 @@
 #include "board/misc.h" // crc16_ccitt
 #include "byteorder.h" // cpu_to_le32
 #include "command.h" // send_ack
+#include "led.h" // led_identify
 
 uint_fast8_t
 command_encode_and_frame(uint8_t *buf, const struct command_encoder *ce
@@ -84,6 +85,13 @@ command_dispatch(uint8_t *buf, uint_fast8_t msglen)
         case CMD_GET_CANBUS_ID:
             if (CONFIG_CANSERIAL) {
                 command_get_canbus_id(data);
+                break;
+            }
+            // NO BREAK
+        case CMD_IDENTIFY:
+            if (led_is_enabled()) {
+                led_identify();
+                command_respond_ack(CMD_IDENTIFY, data, 2);
                 break;
             }
             // NO BREAK

@@ -30,6 +30,7 @@
 #define CMD_REQ_BLOCK     0x14
 #define CMD_COMPLETE      0x15
 #define CMD_GET_CANBUS_ID 0x16
+#define CMD_IDENTIFY      0x17
 #define RESPONSE_ACK           0xa0
 #define RESPONSE_NACK          0xf1
 #define RESPONSE_COMMAND_ERROR 0xf2
