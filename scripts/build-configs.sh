@@ -26,6 +26,9 @@ fi
 
 mkdir -p "${ARTIFACT_DIR}"
 
+# Set VERSION from git describe for Kconfig
+export VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "unknown")
+
 if command -v nproc >/dev/null 2>&1; then
     JOBS=$(nproc)
 elif command -v sysctl >/dev/null 2>&1; then

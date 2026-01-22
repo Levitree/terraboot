@@ -38,9 +38,7 @@ jobs:
       - name: Install toolchain
         uses: carlosperate/arm-none-eabi-gcc-action@v1
         with:
-          release: '14.2.Rel1'
-      - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y zip
+          release: "15.2.Rel1"
       - name: Build configuration
         env:
           CONFIG_NAME: ${{ matrix.config }}

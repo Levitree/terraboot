@@ -7,6 +7,10 @@
 # Output directory
 OUT=out/
 
+# Version from git describe (used by Kconfig for CONFIG_KATAPULT_VERSION)
+VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "unknown")
+export VERSION
+
 # Kconfig includes
 export KCONFIG_CONFIG     := $(CURDIR)/.config
 -include $(KCONFIG_CONFIG)
