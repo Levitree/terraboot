@@ -10,16 +10,12 @@
 #include "ctr.h" // DECL_CTR
 #include "sched.h" // DECL_INIT
 
-#define IDENTIFY_BLINK_US   166667
-#define IDENTIFY_DURATION   10000000
-#define BREATH_STEP_US      80000
-
 DECL_CTR("DECL_LED_PIN " __stringify(CONFIG_STATUS_LED_PIN));
 extern uint32_t led_gpio, led_gpio_high;
 
 static struct gpio_out led;
 static uint32_t last_time;
-static uint32_t mode_end;  // 0=breathing, non-zero=identify end time
+static uint32_t mode_end;
 static uint8_t pwm_cnt;
 static uint8_t bright;
 
@@ -40,12 +36,12 @@ led_blink_task(void)
         mode_end = 0;
 
     if (mode_end) {
-        if (timer_is_before(last_time + timer_from_us(IDENTIFY_BLINK_US), now)) {
+        if (timer_is_before(last_time + timer_from_us(166667), now)) {
             gpio_out_toggle(led);
             last_time = now;
         }
     } else {
-        if (timer_is_before(last_time + timer_from_us(BREATH_STEP_US), now)) {
+        if (timer_is_before(last_time + timer_from_us(80000), now)) {
             last_time = now;
             bright = (bright + 1) & 31;
         }
@@ -58,5 +54,5 @@ DECL_TASK(led_blink_task);
 void
 led_identify(void)
 {
-    mode_end = timer_read_time() + timer_from_us(IDENTIFY_DURATION);
+    mode_end = timer_read_time() + timer_from_us(10000000);
 }

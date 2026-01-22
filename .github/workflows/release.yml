@@ -40,9 +40,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install toolchain
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-arm-none-eabi libnewlib-arm-none-eabi
+        uses: carlosperate/arm-none-eabi-gcc-action@v1
+        with:
+          release: '14.2.Rel1'
       - name: Build configuration
         env:
           CONFIG_NAME: ${{ matrix.config }}
