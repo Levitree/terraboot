@@ -28,16 +28,16 @@ get_app_code_addr(void)
     return CONFIG_LAUNCH_APP_ADDRESS + CONFIG_METADATA_PAGE_SIZE;
 }
 
-app_metadata_t *
+app_metadata_t*
 appvalidate_get_metadata(void)
 {
-    return (app_metadata_t *)get_metadata_addr();
+    return (app_metadata_t*)get_metadata_addr();
 }
 
 app_verify_result_t
 appvalidate_verify(void)
 {
-    app_metadata_t *meta = appvalidate_get_metadata();
+    app_metadata_t* meta = appvalidate_get_metadata();
 
     // Check magic string - distinguish erased from valid metadata
     if (memcmp(meta->magic, APP_METADATA_MAGIC, APP_METADATA_MAGIC_LEN) != 0)

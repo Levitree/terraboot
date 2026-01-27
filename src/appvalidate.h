@@ -13,11 +13,13 @@
 #define APP_METADATA_MAGIC_LEN 24
 
 typedef struct __attribute__((packed)) {
-    char magic[24];       // APP_METADATA_MAGIC
-    uint32_t app_size;    // Size of app in bytes
-    uint64_t app_hash;    // fasthash64 of app data
-    uint32_t meta_crc;    // fasthash32 of above fields
-    uint8_t reserved[8];  // Future use
+    char magic[24];             // APP_METADATA_MAGIC
+    uint32_t app_size;          // Size of app in bytes
+    uint64_t app_hash;          // fasthash64 of app data
+    uint32_t app_version;       // Application version (0x00XXYYZZ format)
+    char app_variant_name[32];  // Variant name (null-terminated)
+    uint8_t reserved[8];        // Future use, set to 0xFF
+    uint32_t meta_crc;          // fasthash32 of all above fields
 } app_metadata_t;
 
 typedef enum {

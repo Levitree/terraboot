@@ -15,6 +15,7 @@
 #include "command.h" // DECL_CONSTANT
 #include "fasthash.h" // fasthash64
 #include "sched.h" // sched_wake_task
+#include "generic/misc.h" // timer_read_time, timer_from_us, timer_is_before
 
 #define CANBUS_UUID_LEN 6
 
@@ -38,10 +39,20 @@ static struct canbus_data {
     uint8_t receive_buf[192];
 } CanData;
 
+// Heartbeat timing
+static uint32_t heartbeat_last_time;
 
 /****************************************************************
  * Data transmission over CAN
  ****************************************************************/
+
+ // Initialize heartbeat timer
+void
+canserial_heartbeat_init(void)
+{
+    heartbeat_last_time = timer_read_time();
+}
+DECL_INIT(canserial_heartbeat_init);
 
 void
 canserial_notify_tx(void)
@@ -79,7 +90,7 @@ DECL_TASK(canserial_tx_task);
 
 // Encode and transmit a "response" message
 void
-console_sendf(const struct command_encoder *ce, va_list args)
+console_sendf(const struct command_encoder* ce, va_list args)
 {
     // Verify space for message
     uint32_t tpos = CanData.transmit_pos, tmax = CanData.transmit_max;
@@ -99,7 +110,7 @@ console_sendf(const struct command_encoder *ce, va_list args)
 
     // Generate message
     uint32_t msglen = command_encode_and_frame(&CanData.transmit_buf[tmax]
-                                               , ce, args);
+        , ce, args);
 
     // Start message transmit
     CanData.transmit_max = tmax + msglen;
@@ -111,37 +122,30 @@ console_sendf(const struct command_encoder *ce, va_list args)
  * CAN "admin" command handling
  ****************************************************************/
 
-// Available commands and responses
+ // Available commands and responses
 #define CANBUS_CMD_QUERY_UNASSIGNED 0x00
 #define CANBUS_CMD_SET_CANBOOT_NODEID 0x11
 #define CANBUS_CMD_CLEAR_CANBOOT_NODEID 0x12
 #define CANBUS_RESP_NEED_NODEID 0x20
+#define CANBUS_RESP_SET_NODEID_ACK 0x21
+#define TERRABOOT_DEVICE_TYPE 254
 
 // Helper to verify a UUID in a command matches this chip's UUID
 static int
-can_check_uuid(struct canbus_msg *msg)
+can_check_uuid(struct canbus_msg* msg)
 {
     return (msg->dlc >= 7
-            && memcmp(&msg->data[1], CanData.uuid, sizeof(CanData.uuid)) == 0);
+        && memcmp(&msg->data[1], CanData.uuid, sizeof(CanData.uuid)) == 0);
 }
-
-// Helpers to encode/decode a CAN identifier to a 1-byte "nodeid"
-/*static int
-can_get_nodeid(void)
-{
-    if (!CanData.assigned_id)
-        return 0;
-    return (CanData.assigned_id - 0x200) >> 1;
-}*/
 
 static uint32_t
 can_decode_nodeid(int nodeid)
 {
-    return (nodeid << 1) + 0x200;
+    return (nodeid << 1) + 0x100;
 }
 
 static void
-can_process_query_unassigned(struct canbus_msg *msg)
+can_process_query_unassigned(struct canbus_msg* msg)
 {
     if (CanData.assigned_id)
         return;
@@ -150,7 +154,7 @@ can_process_query_unassigned(struct canbus_msg *msg)
     send.dlc = 8;
     send.data[0] = CANBUS_RESP_NEED_NODEID;
     memcpy(&send.data[1], CanData.uuid, sizeof(CanData.uuid));
-    send.data[7] = CANBUS_CMD_SET_CANBOOT_NODEID;
+    send.data[7] = TERRABOOT_DEVICE_TYPE;
     // Send with retry
     for (;;) {
         int ret = canbus_send(&send);
@@ -174,7 +178,7 @@ can_id_conflict(void)
 }
 
 static void
-can_process_set_canboot_nodeid(struct canbus_msg *msg)
+can_process_set_canboot_nodeid(struct canbus_msg* msg)
 {
     if (msg->dlc < 8)
         return;
@@ -183,15 +187,33 @@ can_process_set_canboot_nodeid(struct canbus_msg *msg)
         if (newid != CanData.assigned_id) {
             CanData.assigned_id = newid;
             canbus_set_filter(CanData.assigned_id);
+
+            // Send ACK response
+            struct canbus_msg ack;
+            ack.id = CANBUS_ID_ADMIN_RESP;
+            ack.dlc = 8;
+            ack.data[0] = CANBUS_RESP_SET_NODEID_ACK;
+            ack.data[1] = msg->data[7];
+            ack.data[2] = TERRABOOT_DEVICE_TYPE;
+            ack.data[3] = 0x01;
+            memset(&ack.data[4], 0, 4);
+
+            // Send with retry
+            for (;;) {
+                int ret = canbus_send(&ack);
+                if (ret >= 0)
+                    break;
+            }
         }
-    } else if (newid == CanData.assigned_id) {
+    }
+    else if (newid == CanData.assigned_id) {
         can_id_conflict();
     }
 }
 
 // Handle an "admin" command
 static void
-can_process_admin(struct canbus_msg *msg)
+can_process_admin(struct canbus_msg* msg)
 {
     if (!msg->dlc)
         return;
@@ -223,7 +245,7 @@ DECL_CONSTANT("RECEIVE_WINDOW", ARRAY_SIZE(CanData.receive_buf));
 
 // Handle incoming data (called from IRQ handler)
 int
-canserial_process_data(struct canbus_msg *msg)
+canserial_process_data(struct canbus_msg* msg)
 {
     uint32_t id = msg->id;
     if (CanData.assigned_id && id == CanData.assigned_id) {
@@ -235,8 +257,9 @@ canserial_process_data(struct canbus_msg *msg)
         memcpy(&CanData.receive_buf[rpos], msg->data, len);
         CanData.receive_pos = rpos + len;
         canserial_notify_rx();
-    } else if (id == CANBUS_ID_ADMIN
-               || (CanData.assigned_id && id == CanData.assigned_id + 1)) {
+    }
+    else if (id == CANBUS_ID_ADMIN
+        || (CanData.assigned_id && id == CanData.assigned_id + 1)) {
         // Add to admin command queue
         uint32_t pushp = CanData.admin_push_pos;
         if (pushp >= CanData.admin_pull_pos + ARRAY_SIZE(CanData.admin_queue))
@@ -260,7 +283,7 @@ console_pop_input(int len)
         int needcopy = rpos - len;
         if (needcopy) {
             memmove(&CanData.receive_buf[copied]
-                    , &CanData.receive_buf[copied + len], needcopy - copied);
+                , &CanData.receive_buf[copied + len], needcopy - copied);
             copied = needcopy;
             canserial_notify_rx();
         }
@@ -290,7 +313,7 @@ canserial_rx_task(void)
         if (pushp == pullp)
             break;
         uint32_t pos = pullp % ARRAY_SIZE(CanData.admin_queue);
-        struct canbus_msg *msg = &CanData.admin_queue[pos];
+        struct canbus_msg* msg = &CanData.admin_queue[pos];
         uint32_t id = msg->id;
         if (CanData.assigned_id && id == CanData.assigned_id + 1)
             can_id_conflict();
@@ -312,13 +335,41 @@ canserial_rx_task(void)
 }
 DECL_TASK(canserial_rx_task);
 
+// Periodic heartbeat task (2.5 seconds)
+void
+canserial_heartbeat_task(void)
+{
+    // Only send heartbeat if short ID is assigned
+    if (!CanData.assigned_id)
+        return;
+
+    uint32_t now = timer_read_time();
+    uint32_t heartbeat_interval_us = 2500000;  // 2.5 seconds
+
+    // Check if 2.5 seconds have elapsed
+    if (timer_is_before(heartbeat_last_time + timer_from_us(heartbeat_interval_us), now)) {
+        // Calculate short_id from assigned_id
+        uint32_t short_id = (CanData.assigned_id - 0x100) >> 1;
+
+        // Send heartbeat on 0x700 + short_id
+        struct canbus_msg hb;
+        hb.id = 0x700 + short_id;
+        hb.dlc = 1;
+        hb.data[0] = 0x04;
+
+        canbus_send(&hb);
+        heartbeat_last_time = now;
+    }
+}
+DECL_TASK(canserial_heartbeat_task);
+
 
 /****************************************************************
  * Setup and shutdown
  ****************************************************************/
 
 void
-command_get_canbus_id(uint32_t *args)
+command_get_canbus_id(uint32_t* args)
 {
     uint32_t out[5] = {};
     memcpy(&out[2], CanData.uuid, 6);
@@ -326,7 +377,7 @@ command_get_canbus_id(uint32_t *args)
 }
 
 void
-canserial_set_uuid(uint8_t *raw_uuid, uint32_t raw_uuid_len)
+canserial_set_uuid(uint8_t* raw_uuid, uint32_t raw_uuid_len)
 {
     uint64_t hash = fasthash64(raw_uuid, raw_uuid_len, 0xA16231A7);
     memcpy(CanData.uuid, &hash, sizeof(CanData.uuid));

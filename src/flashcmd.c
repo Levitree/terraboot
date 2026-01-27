@@ -5,7 +5,7 @@
 // This file may be distributed under the terms of the GNU GPLv3 license.
 
 #include <string.h> // memmove
-#include "autoconf.h" // CONFIG_BLOCK_SIZE
+#include "autoconf.h" // CONFIG_BLOCK_SIZE, CONFIG_FLASH_SIZE
 #include "board/flash.h" // flash_write_block
 #include "board/misc.h" // application_jump
 #include "byteorder.h" // cpu_to_le32
@@ -13,23 +13,47 @@
 #include "command.h" // command_respond_ack
 #include "flashcmd.h" // flashcmd_is_in_transfer
 #include "sched.h" // DECL_TASK
+#include "appvalidate.h" // appvalidate_get_metadata
+#include "generic/misc.h" // timer_read_time, timer_from_us
 
 // Handler for "connect" commands
 void
 command_connect(uint32_t *data)
 {
+    app_metadata_t *meta = appvalidate_get_metadata();
+    const char *variant_name = "";
+    uint32_t variant_len = 0;
+    uint32_t app_version = 0;
+
+    // Get app version and variant name from metadata if valid
+    if (memcmp(meta->magic, APP_METADATA_MAGIC, APP_METADATA_MAGIC_LEN) == 0) {
+        app_version = meta->app_version;
+        variant_name = meta->app_variant_name;
+        variant_len = strnlen(variant_name, sizeof(meta->app_variant_name));
+    }
+
+    // Calculate writable application area (flash size minus bootloader)
+    uint32_t app_flash_size = CONFIG_FLASH_SIZE -
+        (CONFIG_LAUNCH_APP_ADDRESS - CONFIG_FLASH_START);
+
     uint32_t mcuwords = DIV_ROUND_UP(strlen(CONFIG_MCU), 4);
     uint32_t version_words = DIV_ROUND_UP(strlen(CONFIG_KATAPULT_VERSION), 4);
-    uint32_t out[7 + mcuwords + version_words];
-    memset(out, 0, (7 + mcuwords + version_words) * 4);
+    uint32_t variant_words = DIV_ROUND_UP(variant_len, 4);
+    uint32_t out[10 + mcuwords + version_words + variant_words];
+    memset(out, 0, (10 + mcuwords + version_words + variant_words) * 4);
     out[2] = cpu_to_le32(PROTO_VERSION);
     out[3] = cpu_to_le32(CONFIG_LAUNCH_APP_ADDRESS);
     out[4] = cpu_to_le32(CONFIG_BLOCK_SIZE);
-    memcpy(&out[5], CONFIG_MCU, strlen(CONFIG_MCU));
+    out[5] = cpu_to_le32(app_flash_size);
+    out[6] = cpu_to_le32(app_version);
+    memcpy(&out[7], CONFIG_MCU, strlen(CONFIG_MCU));
     memcpy(
-        &out[6 + mcuwords], CONFIG_KATAPULT_VERSION,
+        &out[8 + mcuwords], CONFIG_KATAPULT_VERSION,
         strlen(CONFIG_KATAPULT_VERSION)
     );
+    if (variant_len > 0) {
+        memcpy(&out[9 + mcuwords + version_words], variant_name, variant_len);
+    }
     command_respond_ack(CMD_CONNECT, out, ARRAY_SIZE(out));
 }
 
