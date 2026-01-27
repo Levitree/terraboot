@@ -131,13 +131,13 @@ can_get_nodeid(void)
 {
     if (!CanData.assigned_id)
         return 0;
-    return (CanData.assigned_id - 0x100) >> 1;
+    return (CanData.assigned_id - 0x200) >> 1;
 }*/
 
 static uint32_t
 can_decode_nodeid(int nodeid)
 {
-    return (nodeid << 1) + 0x100;
+    return (nodeid << 1) + 0x200;
 }
 
 static void

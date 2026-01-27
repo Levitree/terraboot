@@ -739,7 +739,7 @@ class CanSocket(BaseSocket):
         plist.append(node_id)
         payload = bytes(plist)
         self.admin_node.write(payload)
-        decoded_id = node_id * 2 + 0x100
+        decoded_id = node_id * 2 + 0x200
         node = CanNode(decoded_id, self)
         self.nodes[decoded_id + 1] = node
         return node
