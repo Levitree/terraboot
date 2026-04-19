@@ -109,6 +109,18 @@ Connect Response Format (updated):
   - Added metadata reading for variant name extraction
   - Response now variable-length based on variant name
 
+- **Reworked Per-Device CAN ID Layout** ([canserial.c:151-157](src/generic/canserial.c))
+  - Replaced old `(short_id << 1) + 0x100` scheme with 32-ID per-device block
+  - New formula: `base_id = (short_id << 5) + 0x020`
+    - `base + 0x00` CMD_RX (host → device)
+    - `base + 0x01` CMD_TX responses (device → host)
+    - `base + 0x02 .. base + 0x1F` DATA channels (device → host, 30 channels)
+  - Valid `short_id` range narrowed to 1..29 (was 0..127)
+  - Out-of-range short IDs are silently rejected (no ACK sent)
+  - Reserves 0x3C0..0x3EF for future allocations
+  - Admin IDs (0x3F0 / 0x3F1) and heartbeat IDs (0x700 + short_id) unchanged
+  - **Breaking Change:** Host tooling must use new ID formula and enforce 1..29 range
+
 ### Technical Details
 
 #### Memory Layout & Address Constants
@@ -174,13 +186,17 @@ This 56KB is returned in the CONNECT response and represents the total space ava
 
 #### CAN ID Allocation (Updated)
 
-| CAN ID Range  | Purpose                                                    |
-| ------------- | ---------------------------------------------------------- |
-| `0x7DF`       | Admin broadcast (discovery, reset, bootloader entry)       |
-| `0x3F0`       | Admin command (query, assign, clear)                       |
-| `0x3F1`       | Admin response (need ID, ACK)                              |
-| `0x700-0x77F` | Heartbeat messages (`0x700 + short_id`)                    |
-| `0x100-0x1FF` | Bootloader data (`0x100 + nodeid * 2` for TX, `+1` for RX) |
+| CAN ID Range  | Purpose                                                                                 |
+| ------------- | --------------------------------------------------------------------------------------- |
+| `0x040-0x3BF` | Per-device 32-ID block: `base = (short_id << 5) + 0x020`, short_id 1..29                |
+|               | &nbsp;&nbsp;`base + 0x00` CMD_RX (host → device)                                        |
+|               | &nbsp;&nbsp;`base + 0x01` CMD_TX responses (device → host)                              |
+|               | &nbsp;&nbsp;`base + 0x02 .. base + 0x1F` DATA channels (device → host)                  |
+| `0x3C0-0x3EF` | Reserved                                                                                |
+| `0x3F0`       | Admin command (query, assign, clear)                                                    |
+| `0x3F1`       | Admin response (need ID, ACK)                                                           |
+| `0x700-0x77F` | Heartbeat messages (`0x700 + short_id`)                                                 |
+| `0x7DF`       | Admin broadcast (discovery, reset, bootloader entry)                                    |
 
 #### Binary Size Impact
 

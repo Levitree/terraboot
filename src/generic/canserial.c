@@ -19,6 +19,16 @@
 
 #define CANBUS_UUID_LEN 6
 
+// Per-device 32-ID block layout (see docs/admin_protocol.md):
+//   base_id = (short_id << CANBUS_NODEID_SHIFT) + CANBUS_NODEID_BASE
+//   +0x00 CMD_RX, +0x01 CMD_TX, +0x02..+0x1F DATA[0..29]
+// Valid range: short_id 1..29 -> base 0x040..0x3A0
+#define CANBUS_NODEID_SHIFT 5
+#define CANBUS_NODEID_BASE 0x020
+#define CANBUS_SHORT_ID_MIN 1
+#define CANBUS_SHORT_ID_MAX 29
+#define CANBUS_HEARTBEAT_ID_BASE 0x700
+
 // Global storage
 static struct canbus_data {
     uint32_t assigned_id;
@@ -139,9 +149,11 @@ can_check_uuid(struct canbus_msg* msg)
 }
 
 static uint32_t
-can_decode_nodeid(int nodeid)
+can_decode_nodeid(int short_id)
 {
-    return (nodeid << 1) + 0x100;
+    if (short_id < CANBUS_SHORT_ID_MIN || short_id > CANBUS_SHORT_ID_MAX)
+        return 0;
+    return (short_id << CANBUS_NODEID_SHIFT) + CANBUS_NODEID_BASE;
 }
 
 static void
@@ -183,6 +195,8 @@ can_process_set_canboot_nodeid(struct canbus_msg* msg)
     if (msg->dlc < 8)
         return;
     uint32_t newid = can_decode_nodeid(msg->data[7]);
+    if (!newid)
+        return;
     if (can_check_uuid(msg)) {
         if (newid != CanData.assigned_id) {
             CanData.assigned_id = newid;
@@ -348,12 +362,11 @@ canserial_heartbeat_task(void)
 
     // Check if 2.5 seconds have elapsed
     if (timer_is_before(heartbeat_last_time + timer_from_us(heartbeat_interval_us), now)) {
-        // Calculate short_id from assigned_id
-        uint32_t short_id = (CanData.assigned_id - 0x100) >> 1;
+        uint32_t short_id =
+            (CanData.assigned_id - CANBUS_NODEID_BASE) >> CANBUS_NODEID_SHIFT;
 
-        // Send heartbeat on 0x700 + short_id
         struct canbus_msg hb;
-        hb.id = 0x700 + short_id;
+        hb.id = CANBUS_HEARTBEAT_ID_BASE + short_id;
         hb.dlc = 1;
         hb.data[0] = 0x04;
 

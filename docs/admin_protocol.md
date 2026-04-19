@@ -4,13 +4,32 @@ This document describes the CAN-based administrative protocol used by Terraboot 
 
 ## CAN ID Allocation
 
-| CAN ID Range  | Purpose         | Direction     | Format                               |
-| ------------- | --------------- | ------------- | ------------------------------------ |
-| `0x7DF`       | Admin broadcast | Host → Device | Discovery, reset, bootloader entry   |
-| `0x3F0`       | Admin command   | Host → Device | Node ID management                   |
-| `0x3F1`       | Admin response  | Device → Host | Responses to admin commands          |
-| `0x700-0x77F` | Heartbeat       | Device → Host | `0x700 + short_id`                   |
-| `0x100-0x1FF` | Bootloader data | Bidirectional | `0x100 + nodeid * 2` (TX), `+1` (RX) |
+| CAN ID Range  | Purpose              | Direction     | Format                                                                |
+| ------------- | -------------------- | ------------- | --------------------------------------------------------------------- |
+| `0x040-0x3BF` | Per-device block     | Bidirectional | 32-ID block at `base = (short_id << 5) + 0x020` (see below)           |
+| `0x3C0-0x3EF` | Reserved             | —             | —                                                                     |
+| `0x3F0`       | Admin command        | Host → Device | Node ID management                                                    |
+| `0x3F1`       | Admin response       | Device → Host | Responses to admin commands                                           |
+| `0x700-0x77F` | Heartbeat            | Device → Host | `0x700 + short_id`                                                    |
+| `0x7DF`       | Admin broadcast      | Host → Device | Discovery, reset, bootloader entry                                    |
+
+### Per-Device ID Block
+
+Each assigned device owns a 32-ID block derived from its `short_id`:
+
+```
+base_id = (short_id << 5) + 0x020
+
++0x00  CMD_RX   host → device (commands)
++0x01  CMD_TX   device → host (command responses)
++0x02  DATA[0]  device → host (subscription event channel 0)
+...
++0x1F  DATA[29] device → host (subscription event channel 29)
+```
+
+- Valid `short_id` range: **1..29** (base 0x040..0x3A0)
+- IDs 0x3C0..0x3EF are reserved for future use
+- Short IDs outside this range are rejected by the device
 
 ---
 
@@ -50,14 +69,18 @@ All admin commands are sent on CAN ID `0x3F0`.
 - DLC: 8
 - Byte 0: `0x11`
 - Bytes 1-6: Target device UUID
-- Byte 7: Short ID to assign (0-127)
+- Byte 7: Short ID to assign (1-29)
 
 **Response:** See `0x21: RESP_SET_NODEID_ACK`
 
 **Notes:**
 
-- Device will use CAN IDs: `0x100 + (short_id * 2)` for TX, `+1` for RX
+- Device claims the 32-ID block at `base = (short_id << 5) + 0x020`:
+  - `base + 0x00` CMD_RX (host → device)
+  - `base + 0x01` CMD_TX responses (device → host)
+  - `base + 0x02 .. base + 0x1F` DATA channels (device → host)
 - Device will send heartbeat on `0x700 + short_id`
+- Short IDs outside 1-29 are silently rejected (no ACK sent)
 
 ---
 
