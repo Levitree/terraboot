@@ -108,6 +108,7 @@ int_fast8_t
 command_find_block(uint8_t *buf, uint_fast8_t buf_len, uint_fast8_t *pop_count)
 {
     static uint8_t sync_state;
+    uint_fast8_t search_skip = 0;
     if (buf_len && sync_state & CF_NEED_SYNC)
         goto need_sync;
     if (buf_len < MESSAGE_MIN)
@@ -137,9 +138,18 @@ need_more_data:
     return 0;
 error:
     sync_state |= CF_NEED_SYNC;
+    // Skip the just-rejected STX1 at buf[0] before resyncing. When validation
+    // fails past the header check (bad length/trailer/CRC), buf[0] is a
+    // known-bad 0x01; without the skip, memchr re-finds it every call,
+    // pop_count stays 0, and the bad bytes park in receive_buf forever —
+    // eventually filling it and wedging the device against further commands.
+    if (buf_len > 0 && buf[0] == MESSAGE_STX1)
+        search_skip = 1;
 need_sync: ;
     // Discard bytes until next SYNC found
-    uint8_t *next_sync = memchr(buf, MESSAGE_STX1, buf_len);
+    uint8_t *next_sync = (buf_len > search_skip)
+        ? memchr(buf + search_skip, MESSAGE_STX1, buf_len - search_skip)
+        : NULL;
     if (next_sync) {
         sync_state &= ~CF_NEED_SYNC;
         *pop_count = next_sync - buf;

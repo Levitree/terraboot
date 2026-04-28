@@ -41,6 +41,7 @@ static struct canbus_data {
     // Rx data
     struct task_wake rx_wake;
     uint8_t receive_pos;
+    uint8_t id_conflict_pending;
     uint32_t admin_pull_pos, admin_push_pos;
 
     // Transfer buffers
@@ -272,8 +273,16 @@ canserial_process_data(struct canbus_msg* msg)
         CanData.receive_pos = rpos + len;
         canserial_notify_rx();
     }
-    else if (id == CANBUS_ID_ADMIN
-        || (CanData.assigned_id && id == CanData.assigned_id + 1)) {
+    else if (CanData.assigned_id && id == CanData.assigned_id + 1) {
+        // ID-conflict signal: a frame on our outbound CMD_TX channel means
+        // someone else thinks they own this short_id. Flag it for the task
+        // rather than queueing — otherwise a flood of conflict frames
+        // (loopback, echo, neighbor) fills admin_queue and starves real
+        // admin commands.
+        CanData.id_conflict_pending = 1;
+        canserial_notify_rx();
+    }
+    else if (id == CANBUS_ID_ADMIN) {
         // Add to admin command queue
         uint32_t pushp = CanData.admin_push_pos;
         if (pushp >= CanData.admin_pull_pos + ARRAY_SIZE(CanData.admin_queue))
@@ -320,6 +329,12 @@ canserial_rx_task(void)
     if (!sched_check_wake(&CanData.rx_wake))
         return;
 
+    // Handle pending ID-conflict signal (set in IRQ context).
+    if (readb(&CanData.id_conflict_pending)) {
+        CanData.id_conflict_pending = 0;
+        can_id_conflict();
+    }
+
     // Process pending admin messages
     for (;;) {
         uint32_t pushp = readl(&CanData.admin_push_pos);
@@ -328,10 +343,7 @@ canserial_rx_task(void)
             break;
         uint32_t pos = pullp % ARRAY_SIZE(CanData.admin_queue);
         struct canbus_msg* msg = &CanData.admin_queue[pos];
-        uint32_t id = msg->id;
-        if (CanData.assigned_id && id == CanData.assigned_id + 1)
-            can_id_conflict();
-        else if (id == CANBUS_ID_ADMIN)
+        if (msg->id == CANBUS_ID_ADMIN)
             can_process_admin(msg);
         CanData.admin_pull_pos = pullp + 1;
     }

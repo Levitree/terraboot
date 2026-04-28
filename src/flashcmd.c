@@ -16,10 +16,19 @@
 #include "appvalidate.h" // appvalidate_get_metadata
 #include "generic/misc.h" // timer_read_time, timer_from_us
 
+static uint8_t is_in_transfer;
+static uint32_t total_bytes_written;
+
 // Handler for "connect" commands
 void
 command_connect(uint32_t *data)
 {
+    // Clear any stale transfer state from a previous (possibly aborted)
+    // session. Without this, the timeout-to-app path stays blocked forever
+    // if a host crashed mid-flash and reconnects.
+    is_in_transfer = 0;
+    total_bytes_written = 0;
+
     app_metadata_t *meta = appvalidate_get_metadata();
     const char *variant_name = "";
     uint32_t variant_len = 0;
@@ -87,13 +96,24 @@ DECL_TASK(complete_task);
  * Flash commands
  ****************************************************************/
 
-static uint8_t is_in_transfer;
-static uint32_t total_bytes_written;
-
 int
 flashcmd_is_in_transfer(void)
 {
     return is_in_transfer;
+}
+
+// Reject any block_address that isn't fully inside the writable app region.
+// Without this, a host can read or write past flash end (faulting on some
+// backends) or below LAUNCH_APP_ADDRESS into bootloader memory.
+static int
+flashcmd_block_in_range(uint32_t block_address)
+{
+    uint32_t flash_end = CONFIG_FLASH_START + CONFIG_FLASH_SIZE;
+    if (block_address < CONFIG_LAUNCH_APP_ADDRESS)
+        return 0;
+    if (block_address > flash_end - CONFIG_BLOCK_SIZE)
+        return 0;
+    return 1;
 }
 
 void
@@ -101,6 +121,10 @@ command_read_block(uint32_t *data)
 {
     is_in_transfer = 1;
     uint32_t block_address = le32_to_cpu(data[1]);
+    if (!flashcmd_block_in_range(block_address)) {
+        command_respond_command_error();
+        return;
+    }
     uint32_t out[CONFIG_BLOCK_SIZE / 4 + 2 + 2];
     out[2] = cpu_to_le32(block_address);
     application_read_flash(block_address, &out[3]);
@@ -114,7 +138,7 @@ command_write_block(uint32_t *data)
     if (command_get_arg_count(data) != (CONFIG_BLOCK_SIZE / 4) + 1)
         goto fail;
     uint32_t block_address = le32_to_cpu(data[1]);
-    if (block_address < CONFIG_LAUNCH_APP_ADDRESS)
+    if (!flashcmd_block_in_range(block_address))
         goto fail;
     // Reset byte counter at start of new transfer
     if (block_address == CONFIG_LAUNCH_APP_ADDRESS)
